@@ -220,7 +220,7 @@ router.post('/user/avatar', upload.single('avatar'), async (ctx, next) => {
   const { id } = ctx.request.query;
   const user = await UserModel.findById(id);
 
-  const filePath = 'http://127.0.0.1:8080/uploads/avatars/' + ctx.req.file.filename;
+  const filePath = 'http://118.31.2.223:8080/uploads/avatars/' + ctx.req.file.filename;
 
   user.currentAvatar = filePath;
 
