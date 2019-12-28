@@ -1,6 +1,8 @@
+const { dbUser, dbPwd, dbHost, dbPort, dbName } = require('../config');
+
 const connectDB = () => {
   const mongoose = require('mongoose');
-  mongoose.connect('mongodb://127.0.0.1:27017/order');
+  mongoose.connect(`mongodb://${dbUser}:${dbPwd}@${dbHost}:${dbPort}/${dbName}`);
 
   const db = mongoose.connection;
 
