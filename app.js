@@ -5,8 +5,7 @@ const path = require('path');
 const registerRouter = require('./api/v1');
 const catchError = require('./middleWares/catchError');
 const connectDB = require('./middleWares/connectDB');
-const cors = require('koa2-cors');
-const fs = require('fs');
+const cors = require('koa2-cors')
 
 const app = new Koa();
 app.use(catchError());
@@ -18,10 +17,7 @@ app.use(registerRouter());
 
 // 404
 app.use(async (ctx, next) => {
-  const rs = fs.createReadStream(path.resolve(__dirname, './public/404.html'), 'utf8');
-  ctx.status = 404;
-  ctx.type = 'html';
-  ctx.body = rs;
+  
 })
 
 app.listen(8080, () => {
