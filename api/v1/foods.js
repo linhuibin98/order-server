@@ -449,11 +449,12 @@ router.get('/store/order/:id', async (ctx, next) => {
 })
 
 // 根据storeId, orderNum获取订单详情
-router.get('/order/detail', async (ctx, next) => {
-  let { storeId, orderNum } = ctx.request.query;
+router.get('/order/detail/:storeId/:orderNum', async (ctx, next) => {
+  let { storeId, orderNum } = ctx.params;
   let store = await StoreModel.findById(storeId);
 
   let order = store.orders.find((order => order.num === orderNum));
+
   ctx.body = {
     errorCode: 0,
     message: 'ok',
