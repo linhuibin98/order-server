@@ -35,7 +35,7 @@ router.post('/user/login', async (ctx, next) => {
       userInfo,
       avatar,
       token: jwt.sign(userInfo, secret, {
-        expiresIn: 60
+        expiresIn: 60 * 60 * 24
       })
     }
   }
@@ -63,7 +63,7 @@ router.get('/validate/token', async (ctx, next) => {
         message: 'ok',
         userInfo: sendDada,
         token: jwt.sign(sendDada, secret, {
-          expiresIn: 60
+          expiresIn: 60 * 60 * 24
         })
       }
     }

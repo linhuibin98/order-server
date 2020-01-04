@@ -89,7 +89,7 @@ router.post('/store/login', async (ctx, next) => {
       data: {
         userInfo: sendData,
         token: jwt.sign(sendData, secret, {
-          expiresIn: 60
+          expiresIn: 60 * 60 * 24
         })
       }
     }
