@@ -15,11 +15,6 @@ app.use(bodyParser());
 app.use(staticMiddleware(path.resolve(__dirname, './static')));
 app.use(registerRouter());
 
-// 404
-app.use(async (ctx, next) => {
-  
-})
-
 app.listen(8080, () => {
   console.log('server is runing at port 8080');
 })

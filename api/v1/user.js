@@ -103,6 +103,57 @@ router.post('/user/register', async (ctx, next) => {
   await next();
 });
 
+// 修改密码
+router.post('/user/password', async (ctx, next) => {
+  let token = ctx.request.headers.authorization;
+  function jwtDecode(token) {
+    let result = {};
+    jwt.verify(token, secret, (err, decode) => {
+      if (err) {
+        return result = { verify: false };
+      } else {
+        result = {verify: true, decode};
+      }
+    })
+    return result;
+  }
+
+  let { verify, decode } = jwtDecode(token);
+
+  if (!verify) {
+    return ctx.body = {
+      errorCode: 1,
+      message: '禁止访问, 请登录后再试...'
+    }
+  }
+
+  const { id } = decode;
+  const { oldPassword, newPassword } = JSON.parse(ctx.request.rawBody);
+  const hashOldPass = crypto.createHash('sha1', secret).update(oldPassword).digest('hex');
+
+  const user = await UserModel.findById(id);
+
+  if (hashOldPass !== user.password) {
+    return ctx.body = {
+      errorCode: 1,
+      message: '原密码不正确...'
+    }
+  }
+
+  user.password = newPassword;
+
+  user.save(err => {
+    if (err) throw err;
+    console.log('密码修改成功...');
+  })
+  
+  ctx.body = {
+    errorCode: 0,
+    message: '密码修改成功...'
+  }
+  await next();
+})
+
 // 添加收货地址
 router.post('/address/add', async (ctx, next) => {
   let { data: { id, address } } = JSON.parse(ctx.request.rawBody);
@@ -229,7 +280,7 @@ router.post('/user/avatar', upload.single('avatar'), async (ctx, next) => {
   if (user.historyAvatar.length > 5) {
     user.historyAvatar.length = 5;
   }
-  
+
   user.save(err => {
     if (err) throw err;
   })
