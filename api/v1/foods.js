@@ -3,6 +3,7 @@ const { ParameterException, DBException } = require('../../core/http-exception')
 const StoreModel = require('../../models/StoreModel');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const filterOrderData = require('../../lib/filterOrderData');
 
 const router = new Router({
   prefix: '/api/public/v1'
@@ -443,6 +444,28 @@ router.get('/store/order/:id', async (ctx, next) => {
       total
     },
     data
+  }
+  
+  await next();
+})
+
+// 获取当前日期到指定天数的所有订单
+router.get('/store/order/day/:id', async (ctx, next) => {
+  const { id } = ctx.params;
+  let { day } = ctx.request.query;
+  // 获取7天内的订单
+  day = day || 7;
+
+  const store = await StoreModel.findById(id);
+  const orders = store.orders;
+
+  let { xData, seriesData } = filterOrderData(orders, day);
+
+  ctx.body = {
+    errorCode: 0,
+    message: 'ok',
+    seriesData,
+    xData
   }
   
   await next();
