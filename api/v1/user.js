@@ -234,7 +234,7 @@ router.post('/order', async (ctx, next) => {
     totalAmount: price,
     subject: '外卖订单支付',
     body: storeName + ':' + foods[0].name,
-    quitUrl: 'http://118.31.2.223/client#/order'
+    quitUrl: `http://118.31.2.223/client#/order?clear=${storeId}`
   });
 
   const result = await alipaySdk.exec(
