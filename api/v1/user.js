@@ -1,10 +1,23 @@
 const Router = require('koa-router');
 const UserModel = require('../../models/UserModel');
 const storeModel = require('../../models/StoreModel');
+const OrderModel = require('../../models/OrderModel');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const tradeNo = require('../../lib/generateOrderNum');
 const upload = require('../../middleWares/multer');
+const AlipaySdk = require('alipay-sdk').default;
+const AlipayFormData = require('alipay-sdk/lib/form').default;
+const { alipay } = require('../../config');
+
+const { appId, privateKey, gateway, alipayPublicKey, sellerId } = alipay;
+
+const alipaySdk = new AlipaySdk({
+  appId,
+  privateKey,
+  gateway,
+  alipayPublicKey
+});
 
 const router = new Router({
   prefix: '/api/public/v1'
@@ -112,7 +125,7 @@ router.post('/user/password', async (ctx, next) => {
       if (err) {
         return result = { verify: false };
       } else {
-        result = {verify: true, decode};
+        result = { verify: true, decode };
       }
     })
     return result;
@@ -146,7 +159,7 @@ router.post('/user/password', async (ctx, next) => {
     if (err) throw err;
     console.log('密码修改成功...');
   })
-  
+
   ctx.body = {
     errorCode: 0,
     message: '密码修改成功...'
@@ -207,64 +220,114 @@ router.get('/order/:id', async (ctx, next) => {
 router.post('/order', async (ctx, next) => {
   let { data: { userId, storeId, storeName, storeLogoUrl, foods, price, address: { name, phone, address } } } = JSON.parse(ctx.request.rawBody);
 
-  let user = await UserModel.findById(userId);
-  let store = await storeModel.findById(storeId);
+  const formData = new AlipayFormData();
+  // 调用 setMethod 并传入 get，会返回可以跳转到支付页面的 url
+  formData.setMethod('get');
+
+  formData.addField('notifyUrl', 'https://fe1c60b6.ngrok.io/api/public/v1/notify');
+
+  const outTradeNo = tradeNo();
+
+  formData.addField('bizContent', {
+    outTradeNo,
+    productCode: 'FAST_INSTANT_TRADE_PAY',
+    totalAmount: price,
+    subject: '外卖订单支付',
+    body: storeName + ':' + foods[0].name,
+    quitUrl: 'http://118.31.2.223/client#/order'
+  });
+
+  const result = await alipaySdk.exec(
+    'alipay.trade.wap.pay',
+    {},
+    { formData: formData },
+  );
 
   const order = {
-    num: tradeNo(),
+    num: outTradeNo,
     time: new Date().getTime(),
     storeId,
+    userId,
     storeName,
     storeLogoUrl,
     foods,
     price,
     userAddress: address,
     userName: name,
-    userPhone: phone
+    userPhone: phone,
+    status: 1
   }
 
-  // 用户保存订单
-  user.user_order.unshift(order);
-
-  // 店铺保存订单
-  store.orders.unshift(order);
-
-  user.save(err => {
-    if (err) throw err;
-    console.log('生成订单成功');
-  });
-
-  // 订单上的商品销量增加
-  foods.forEach(f => {
-    store.store_goods.forEach(g => {
-      if (f.id == g.food_id) {
-        g.food_sales += parseFloat(f.num);
-      }
-    });
-    store.store_categories.forEach(cat => {
-      cat.children.forEach(c => {
-        if (f.id == c.food_id) {
-          c.food_sales += parseFloat(f.num);
-        }
-      })
-    })
-  })
-
-  // 店铺订单数+1
-  store.store_sales += 1;
-
-  store.save(err => {
-    if (err) throw err;
-  })
+  OrderModel.create(order);
 
   ctx.body = {
     errorCode: 0,
     message: 'ok',
-    orders: user.user_order
-  }
+    result
+  };
 
   await next();
 });
+
+// 支付宝 支付结果处理
+router.post('/notify', async (ctx, next) => {
+  let data = ctx.request.body;
+  if (alipaySdk.checkNotifySign(data)) {
+    const order = await OrderModel.findOne({ num: data['out_trade_no'] });
+
+    // 验证out_trade_no、total_amount、seller_id、app_id
+    if (order && (order.price == data['total_amount']) && (data['seller_id'] === sellerId) && (data['app_id'] === appId)) {
+      // 支付成功保存订单
+      if (data['trade_status'] === 'TRADE_SUCCESS') {
+        // 将订单状态改为 已支付
+        order.status = 2;
+
+        const user = await UserModel.findById(order.userId);
+        const store = await storeModel.findById(order.storeId);
+
+        // 用户保存订单
+        user.user_order.unshift(order);
+
+        // 店铺保存订单
+        store.orders.unshift(order);
+
+        // 订单上的商品销量增加
+        order.foods.forEach(f => {
+          store.store_goods.forEach(g => {
+            if (f.id == g.food_id) {
+              g.food_sales += parseFloat(f.num);
+            }
+          });
+          store.store_categories.forEach(cat => {
+            cat.children.forEach(c => {
+              if (f.id == c.food_id) {
+                c.food_sales += parseFloat(f.num);
+              }
+            })
+          })
+        })
+
+        // 店铺订单数+1
+        store.store_sales += 1;
+
+        user.save(err => {
+          if (err) throw err;
+          console.log('生成订单成功');
+        });
+
+        store.save(err => {
+          if (err) throw err;
+        });
+
+        order.save(err => {
+          if (err) throw err;
+        });
+      }
+    }
+  }
+  ctx.body = 'success'
+  await next();
+})
 
 // 更改头像
 router.post('/user/avatar', upload.single('avatar'), async (ctx, next) => {

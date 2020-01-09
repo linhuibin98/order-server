@@ -12,6 +12,6 @@ let collectionSchema = new Schema({
   }
 });
 
-const collectionModel = model('user', collectionSchema);
+const collectionModel = model('collection', collectionSchema);
 
 module.exports = collectionModel;

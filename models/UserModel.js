@@ -7,6 +7,7 @@ let OrderSchema = new Schema({
   num: String,
   time: Date,
   storeId: Schema.Types.ObjectId,
+  userId: Schema.Types.ObjectId,
   storeName: String,
   storeLogoUrl: String,
   foods: Array, 
