@@ -7,6 +7,11 @@ router.get('/client', async (ctx, next) => {
   await next();
 })
 
+router.get('/', async (ctx, next) => {
+  ctx.redirect('http://118.31.2.223/');
+  await next();
+})
+
 router.get('/blog', async (ctx, next) => {
   ctx.redirect('http://118.31.2.223/');
   await next();
