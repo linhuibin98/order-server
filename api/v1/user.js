@@ -224,7 +224,7 @@ router.post('/order', async (ctx, next) => {
   // 调用 setMethod 并传入 get，会返回可以跳转到支付页面的 url
   formData.setMethod('get');
 
-  formData.addField('notifyUrl', 'https://fe1c60b6.ngrok.io/api/public/v1/notify');
+  formData.addField('notifyUrl', 'http://118.31.2.223/api/public/v1/notify');
 
   const outTradeNo = tradeNo();
 
