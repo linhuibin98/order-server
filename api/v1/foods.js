@@ -4,6 +4,8 @@ const StoreModel = require('../../models/StoreModel');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const filterOrderData = require('../../lib/filterOrderData');
+const glob = require('glob');
+const path = require('path');
 
 const router = new Router({
   prefix: '/api/public/v1'
@@ -22,6 +24,20 @@ router.get('/stores', async (ctx, next) => {
   };
   await next();
 });
+
+// 获取首页轮播图
+router.get('/carousel', async (ctx, next) => {
+  let paths = glob.sync('./static/images/carousel/*.jpg').map(item => ({
+    imgSrc: 'http://118.31.2.223:8080' + item.slice(8),
+    path: '/shop/5dd292a8b077520c2839aa0b'
+  }));
+  ctx.body = {
+    errorCode: 0,
+    message: 'ok',
+    data: paths
+  }
+  await next();
+})
 
 // 店铺账号密码
 router.post('/store/set', async (ctx, next) => {
