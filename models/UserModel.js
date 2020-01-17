@@ -39,7 +39,8 @@ let userSchema = new Schema({
   user_address: [{
     name: String,
     phone: String,
-    address: String
+    address: String,
+    detail: String
   }],
   user_order: [OrderSchema]
 });

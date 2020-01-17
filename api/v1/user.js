@@ -9,6 +9,7 @@ const upload = require('../../middleWares/multer');
 const AlipaySdk = require('alipay-sdk').default;
 const AlipayFormData = require('alipay-sdk/lib/form').default;
 const { alipay } = require('../../config');
+const jwtDecode = require('../../lib/jwtDecode');
 
 const { appId, privateKey, gateway, alipayPublicKey, sellerId } = alipay;
 
@@ -119,17 +120,6 @@ router.post('/user/register', async (ctx, next) => {
 // 修改密码
 router.post('/user/password', async (ctx, next) => {
   let token = ctx.request.headers.authorization;
-  function jwtDecode(token) {
-    let result = {};
-    jwt.verify(token, secret, (err, decode) => {
-      if (err) {
-        return result = { verify: false };
-      } else {
-        result = { verify: true, decode };
-      }
-    })
-    return result;
-  }
 
   let { verify, decode } = jwtDecode(token);
 
@@ -182,14 +172,120 @@ router.post('/address/add', async (ctx, next) => {
 
   ctx.body = {
     errorCode: 0,
-    message: 'ok',
-    address: user.user_address
+    message: '添加成功'
   }
 
   await next();
 });
 
-// 获取收货地址
+// 修改地址
+router.put('/address/update/:id', async (ctx, next) => {
+  let token = ctx.request.headers.authorization;
+  let { verify, decode } = jwtDecode(token);
+
+  if (!verify) {
+    ctx.status = 401;
+    ctx.body = {
+      errorCode: '1',
+      message: '登录失效, 请重新登录'
+    }
+    return;
+  }
+
+  const { id } = decode;
+  let { id: addressId } = ctx.params;
+
+  const user = await UserModel.findById(id);
+
+  if (user) {
+    let address = JSON.parse(ctx.request.rawBody);
+    let index = user.user_address.findIndex(item => item['_id'] == addressId );
+    user.user_address[index] = address;
+
+    user.save(err => {
+      if (err) throw err;
+      console.log('地址更新成功'); 
+    })
+    
+    ctx.body = {
+      errorCode: 0,
+      message: '更新成功'
+    }
+  }
+
+  await next();
+})
+
+// 获取指定地址
+router.get('/address/one/:id', async (ctx, next) => {
+  let token = ctx.request.headers.authorization;
+  let { verify, decode } = jwtDecode(token);
+
+  if (!verify) {
+    ctx.status = 401;
+    ctx.body = {
+      errorCode: '1',
+      message: '登录失效, 请重新登录'
+    }
+    return;
+  }
+
+  const { id } = decode;
+  let { id: addressId } = ctx.params;
+
+  const user = await UserModel.findById(id);
+
+  if (user) {
+    let address = user.user_address.find(item => item['_id'] == addressId );
+    
+    ctx.body = {
+      errorCode: 0,
+      message: 'ok',
+      data: address
+    }
+  }
+
+  await next();
+})
+
+// 删除地址
+router.delete('/address/delete/:id', async (ctx, next) => {
+  let token = ctx.request.headers.authorization;
+  let { verify, decode } = jwtDecode(token);
+
+  if (!verify) {
+    ctx.status = 401;
+    ctx.body = {
+      errorCode: '1',
+      message: '登录失效, 请重新登录'
+    }
+    return;
+  }
+
+  const { id } = decode;
+  let { id: addressId } = ctx.params;
+
+  const user = await UserModel.findById(id);
+
+  if (user) {
+    let index = user.user_address.findIndex(item => item['_id'] == addressId );
+    
+    user.user_address.splice(index, 1);
+
+    user.save(err => {
+      if (err) throw err;
+      console.log('地址更新成功'); 
+    })
+
+    ctx.body = {
+      errorCode: 0,
+      message: '删除成功'
+    }
+  }
+  await next();
+})
+
+// 获取所有收货地址
 router.get('/address/:id', async (ctx, next) => {
   let { id } = ctx.params;
 
