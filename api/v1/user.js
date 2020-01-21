@@ -1,43 +1,45 @@
-const Router = require('koa-router');
-const UserModel = require('../../models/UserModel');
-const storeModel = require('../../models/StoreModel');
-const OrderModel = require('../../models/OrderModel');
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
-const tradeNo = require('../../lib/generateOrderNum');
-const upload = require('../../middleWares/multer');
-const AlipaySdk = require('alipay-sdk').default;
-const AlipayFormData = require('alipay-sdk/lib/form').default;
-const { alipay } = require('../../config');
-const jwtDecode = require('../../lib/jwtDecode');
+const Router = require('koa-router')
+const UserModel = require('../../models/UserModel')
+const storeModel = require('../../models/StoreModel')
+const OrderModel = require('../../models/OrderModel')
+const encryptPassword = require('../../lib/encryptPassword')
+const jwt = require('jsonwebtoken')
+const tradeNo = require('../../lib/generateOrderNum')
+const upload = require('../../middleWares/multer')
+const AlipaySdk = require('alipay-sdk').default
+const AlipayFormData = require('alipay-sdk/lib/form').default
+const { alipay, secret } = require('../../config')
+const verifyAuth = require('../../middleWares/verifyAuth')
 
-const { appId, privateKey, gateway, alipayPublicKey, sellerId } = alipay;
+const { appId, privateKey, gateway, alipayPublicKey, sellerId } = alipay
 
 const alipaySdk = new AlipaySdk({
   appId,
   privateKey,
   gateway,
   alipayPublicKey
-});
+})
 
 const router = new Router({
   prefix: '/api/public/v1'
-});
-
-const secret = 'lhblinhibin';
+})
 
 // 登录
 router.post('/user/login', async (ctx, next) => {
-  let { data: { username, password } } = JSON.parse(ctx.request.rawBody);
+  let {
+    data: { username, password }
+  } = JSON.parse(ctx.request.rawBody)
 
-  let user = await UserModel.findOne({ '$or': [{ username }, { user_phone: username }] });
-  if (!user || crypto.createHash('sha1', secret).update(password).digest('hex') !== user.password) {
+  let user = await UserModel.findOne({
+    $or: [{ username }, { user_phone: username }]
+  })
+  if (!user || encryptPassword(password) !== user.password) {
     ctx.body = {
       errorCode: 1,
       message: '用户不存在,或账号密码错误'
     }
   } else {
-    let { username, user_phone: phone, _id: id, currentAvatar: avatar } = user;
+    let { username, user_phone: phone, _id: id, currentAvatar: avatar } = user
     let userInfo = {
       username,
       phone,
@@ -53,45 +55,39 @@ router.post('/user/login', async (ctx, next) => {
       })
     }
   }
-  await next();
-});
+  await next()
+})
 
 // token校验
-router.get('/validate/token', async (ctx, next) => {
-  let token = ctx.request.headers.authorization;
-  jwt.verify(token, secret, (err, decode) => {
-    if (err) {
-      return ctx.body = {
-        errorCode: 1,
-        message: 'token失效了'
-      }
-    } else {
-      let { username, phone, id, avatar } = decode;
-      let sendDada = {
-        username,
-        phone,
-        id
-      }
-      ctx.body = {
-        errorCode: 0,
-        message: 'ok',
-        userInfo: sendDada,
-        token: jwt.sign(sendDada, secret, {
-          expiresIn: 60 * 60 * 24
-        })
-      }
-    }
-  })
-  await next();
+router.get('/validate/token', verifyAuth(), async (ctx, next) => {
+  const { decode } = ctx.state
+
+  let { username, phone, id } = decode
+  let sendDada = {
+    username,
+    phone,
+    id
+  }
+  ctx.body = {
+    errorCode: 0,
+    message: 'ok',
+    userInfo: sendDada,
+    token: jwt.sign(sendDada, secret, {
+      expiresIn: 60 * 60 * 24
+    })
+  }
+  await next()
 })
 
 // 注册
 router.post('/user/register', async (ctx, next) => {
-  let { data: { username, password, phone } } = JSON.parse(ctx.request.rawBody);
+  let {
+    data: { username, password, phone }
+  } = JSON.parse(ctx.request.rawBody)
 
-  let user1 = await UserModel.findOne({ username });
+  let user1 = await UserModel.findOne({ username })
 
-  let user2 = await UserModel.findOne({ user_phone: phone });
+  let user2 = await UserModel.findOne({ user_phone: phone })
 
   if (user1) {
     ctx.body = {
@@ -108,136 +104,109 @@ router.post('/user/register', async (ctx, next) => {
       username,
       password,
       user_phone: phone
-    });
+    })
     ctx.body = {
       errorCode: 0,
       message: '注册成功'
     }
   }
-  await next();
-});
+  await next()
+})
 
 // 修改密码
-router.post('/user/password', async (ctx, next) => {
-  let token = ctx.request.headers.authorization;
+router.post('/user/password', verifyAuth(), async (ctx, next) => {
+  const { decode } = ctx.state
 
-  let { verify, decode } = jwtDecode(token);
+  const { id } = decode
+  const { oldPassword, newPassword } = JSON.parse(ctx.request.rawBody)
+  const hashOldPass = encryptPassword(oldPassword)
 
-  if (!verify) {
-    return ctx.body = {
-      errorCode: 1,
-      message: '禁止访问, 请登录后再试...'
-    }
-  }
-
-  const { id } = decode;
-  const { oldPassword, newPassword } = JSON.parse(ctx.request.rawBody);
-  const hashOldPass = crypto.createHash('sha1', secret).update(oldPassword).digest('hex');
-
-  const user = await UserModel.findById(id);
+  const user = await UserModel.findById(id)
 
   if (hashOldPass !== user.password) {
-    return ctx.body = {
+    return (ctx.body = {
       errorCode: 1,
       message: '原密码不正确...'
-    }
+    })
   }
 
-  user.password = newPassword;
+  user.password = newPassword
 
   user.save(err => {
-    if (err) throw err;
-    console.log('密码修改成功...');
+    if (err) throw err
+    console.log('密码修改成功...')
   })
 
   ctx.body = {
     errorCode: 0,
     message: '密码修改成功...'
   }
-  await next();
+  await next()
 })
 
 // 添加收货地址
 router.post('/address/add', async (ctx, next) => {
-  let { data: { id, address } } = JSON.parse(ctx.request.rawBody);
+  let {
+    data: { id, address }
+  } = JSON.parse(ctx.request.rawBody)
 
-  const user = await UserModel.findById(id);
+  const user = await UserModel.findById(id)
 
-  user.user_address.unshift(address);
+  user.user_address.unshift(address)
 
   user.save(err => {
-    if (err) throw err;
-    console.log('添加地址成功');
-  });
+    if (err) throw err
+    console.log('添加地址成功')
+  })
 
   ctx.body = {
     errorCode: 0,
     message: '添加成功'
   }
 
-  await next();
-});
+  await next()
+})
 
 // 修改地址
-router.put('/address/update/:id', async (ctx, next) => {
-  let token = ctx.request.headers.authorization;
-  let { verify, decode } = jwtDecode(token);
+router.put('/address/update/:id', verifyAuth(), async (ctx, next) => {
+  const { decode } = ctx.state
 
-  if (!verify) {
-    ctx.status = 401;
-    ctx.body = {
-      errorCode: '1',
-      message: '登录失效, 请重新登录'
-    }
-    return;
-  }
+  const { id } = decode
+  let { id: addressId } = ctx.params
 
-  const { id } = decode;
-  let { id: addressId } = ctx.params;
-
-  const user = await UserModel.findById(id);
+  const user = await UserModel.findById(id)
 
   if (user) {
-    let address = JSON.parse(ctx.request.rawBody);
-    let index = user.user_address.findIndex(item => item['_id'] == addressId );
-    user.user_address[index] = address;
+    let address = JSON.parse(ctx.request.rawBody)
+    let index = user.user_address.findIndex(item => item['_id'] == addressId)
+    user.user_address[index] = address
 
     user.save(err => {
-      if (err) throw err;
-      console.log('地址更新成功'); 
+      if (err) throw err
+      console.log('地址更新成功')
     })
-    
+
     ctx.body = {
       errorCode: 0,
       message: '更新成功'
     }
   }
 
-  await next();
+  await next()
 })
 
 // 获取指定地址
-router.get('/address/one/:id', async (ctx, next) => {
-  let token = ctx.request.headers.authorization;
-  let { verify, decode } = jwtDecode(token);
+router.get('/address/one/:id', verifyAuth(), async (ctx, next) => {
+  const { decode } = ctx.state
 
-  if (!verify) {
-    ctx.status = 401;
-    ctx.body = {
-      errorCode: '1',
-      message: '登录失效, 请重新登录'
-    }
-    return;
-  }
+  const { id } = decode
+  let { id: addressId } = ctx.params
 
-  const { id } = decode;
-  let { id: addressId } = ctx.params;
-
-  const user = await UserModel.findById(id);
+  const user = await UserModel.findById(id)
 
   if (user) {
-    let address = user.user_address.find(item => item['_id'] == addressId );
-    
+    let address = user.user_address.find(item => item['_id'] == addressId)
+
     ctx.body = {
       errorCode: 0,
       message: 'ok',
@@ -245,36 +214,26 @@ router.get('/address/one/:id', async (ctx, next) => {
     }
   }
 
-  await next();
+  await next()
 })
 
 // 删除地址
-router.delete('/address/delete/:id', async (ctx, next) => {
-  let token = ctx.request.headers.authorization;
-  let { verify, decode } = jwtDecode(token);
+router.delete('/address/delete/:id', verifyAuth(), async (ctx, next) => {
+  const { decode } = ctx.state
 
-  if (!verify) {
-    ctx.status = 401;
-    ctx.body = {
-      errorCode: '1',
-      message: '登录失效, 请重新登录'
-    }
-    return;
-  }
+  const { id } = decode
+  let { id: addressId } = ctx.params
 
-  const { id } = decode;
-  let { id: addressId } = ctx.params;
-
-  const user = await UserModel.findById(id);
+  const user = await UserModel.findById(id)
 
   if (user) {
-    let index = user.user_address.findIndex(item => item['_id'] == addressId );
-    
-    user.user_address.splice(index, 1);
+    let index = user.user_address.findIndex(item => item['_id'] == addressId)
+
+    user.user_address.splice(index, 1)
 
     user.save(err => {
-      if (err) throw err;
-      console.log('地址更新成功'); 
+      if (err) throw err
+      console.log('地址更新成功')
     })
 
     ctx.body = {
@@ -282,14 +241,16 @@ router.delete('/address/delete/:id', async (ctx, next) => {
       message: '删除成功'
     }
   }
-  await next();
+  await next()
 })
 
 // 获取所有收货地址
-router.get('/address/:id', async (ctx, next) => {
-  let { id } = ctx.params;
+router.get('/address', verifyAuth(), async (ctx, next) => {
+  const { decode } = ctx.state
 
-  let user = await UserModel.findById(id);
+  const { id } = decode
+
+  let user = await UserModel.findById(id)
 
   ctx.body = {
     errorCode: 0,
@@ -297,32 +258,45 @@ router.get('/address/:id', async (ctx, next) => {
     address: user.user_address
   }
 
-  await next();
+  await next()
 })
 
 // 获取订单
-router.get('/order/:id', async (ctx, next) => {
-  let { id } = ctx.params;
-  let user = await UserModel.findById(id);
+router.get('/order', verifyAuth(), async (ctx, next) => {
+  const { decode } = ctx.state
+
+  const { id } = decode
+
+  let user = await UserModel.findById(id)
   ctx.body = {
     errorCode: 0,
     message: 'ok',
     orders: user.user_order
   }
-  await next();
-});
+  await next()
+})
 
 // 生成订单
 router.post('/order', async (ctx, next) => {
-  let { data: { userId, storeId, storeName, storeLogoUrl, foods, price, address: { name, phone, address } } } = JSON.parse(ctx.request.rawBody);
+  let {
+    data: {
+      userId,
+      storeId,
+      storeName,
+      storeLogoUrl,
+      foods,
+      price,
+      address: { name, phone, address }
+    }
+  } = JSON.parse(ctx.request.rawBody)
 
-  const formData = new AlipayFormData();
+  const formData = new AlipayFormData()
   // 调用 setMethod 并传入 get，会返回可以跳转到支付页面的 url
-  formData.setMethod('get');
+  formData.setMethod('get')
 
-  formData.addField('notifyUrl', 'http://118.31.2.223/api/public/v1/notify');
+  formData.addField('notifyUrl', 'http://118.31.2.223/api/public/v1/notify')
 
-  const outTradeNo = tradeNo();
+  const outTradeNo = tradeNo()
 
   formData.addField('bizContent', {
     outTradeNo,
@@ -331,13 +305,13 @@ router.post('/order', async (ctx, next) => {
     subject: '外卖订单支付',
     body: storeName + ':' + foods[0].name,
     quitUrl: 'http://118.31.2.223/client#/order'
-  });
+  })
 
   const result = await alipaySdk.exec(
     'alipay.trade.wap.pay',
     {},
-    { formData: formData },
-  );
+    { formData: formData }
+  )
 
   const order = {
     num: outTradeNo,
@@ -354,94 +328,100 @@ router.post('/order', async (ctx, next) => {
     status: 1
   }
 
-  OrderModel.create(order);
+  OrderModel.create(order)
 
   ctx.body = {
     errorCode: 0,
     message: 'ok',
     result
-  };
+  }
 
-  await next();
-});
+  await next()
+})
 
 // 支付宝 支付结果处理
 router.post('/notify', async (ctx, next) => {
-  let data = ctx.request.body;
+  let data = ctx.request.body
   if (alipaySdk.checkNotifySign(data)) {
-    const order = await OrderModel.findOne({ num: data['out_trade_no'] });
+    const order = await OrderModel.findOne({ num: data['out_trade_no'] })
 
     // 验证out_trade_no、total_amount、seller_id、app_id
-    if (order && (order.price == data['total_amount']) && (data['seller_id'] === sellerId) && (data['app_id'] === appId)) {
+    if (
+      order &&
+      order.price == data['total_amount'] &&
+      data['seller_id'] === sellerId &&
+      data['app_id'] === appId
+    ) {
       // 支付成功保存订单
       if (data['trade_status'] === 'TRADE_SUCCESS') {
         // 将订单状态改为 已支付
-        order.status = 2;
+        order.status = 2
 
-        const user = await UserModel.findById(order.userId);
-        const store = await storeModel.findById(order.storeId);
+        const user = await UserModel.findById(order.userId)
+        const store = await storeModel.findById(order.storeId)
 
         // 用户保存订单
-        user.user_order.unshift(order);
+        user.user_order.unshift(order)
 
         // 店铺保存订单
-        store.orders.unshift(order);
+        store.orders.unshift(order)
 
         // 订单上的商品销量增加
         order.foods.forEach(f => {
           store.store_goods.forEach(g => {
             if (f.id == g.food_id) {
-              g.food_sales += parseFloat(f.num);
+              g.food_sales += parseFloat(f.num)
             }
-          });
+          })
           store.store_categories.forEach(cat => {
             cat.children.forEach(c => {
               if (f.id == c.food_id) {
-                c.food_sales += parseFloat(f.num);
+                c.food_sales += parseFloat(f.num)
               }
             })
           })
         })
 
         // 店铺订单数+1
-        store.store_sales += 1;
+        store.store_sales += 1
 
         user.save(err => {
-          if (err) throw err;
-          console.log('生成订单成功');
-        });
+          if (err) throw err
+          console.log('生成订单成功')
+        })
 
         store.save(err => {
-          if (err) throw err;
-        });
+          if (err) throw err
+        })
 
         order.save(err => {
-          if (err) throw err;
-        });
+          if (err) throw err
+        })
       }
     }
   }
   ctx.body = 'success'
-  await next();
+  await next()
 })
 
 // 更改头像
 router.post('/user/avatar', upload.single('avatar'), async (ctx, next) => {
-  const { id } = ctx.request.query;
-  const user = await UserModel.findById(id);
+  const { id } = ctx.request.query
+  const user = await UserModel.findById(id)
 
-  const filePath = 'http://118.31.2.223:8080/uploads/avatars/' + ctx.req.file.filename;
+  const filePath =
+    'http://118.31.2.223:8080/uploads/avatars/' + ctx.req.file.filename
 
-  user.currentAvatar = filePath;
+  user.currentAvatar = filePath
 
-  user.historyAvatar.unshift(filePath);
+  user.historyAvatar.unshift(filePath)
 
   if (user.historyAvatar.length > 5) {
-    user.historyAvatar.length = 5;
+    user.historyAvatar.length = 5
   }
 
   user.save(err => {
-    if (err) throw err;
+    if (err) throw err
   })
 
   ctx.body = {
@@ -449,19 +429,19 @@ router.post('/user/avatar', upload.single('avatar'), async (ctx, next) => {
     message: 'ok',
     avatar: user.currentAvatar
   }
-  await next();
+  await next()
 })
 
 // 获取头像
 router.get('/user/avatar/:id', async (ctx, next) => {
-  let { id } = ctx.params;
-  const user = await UserModel.findById(id);
+  let { id } = ctx.params
+  const user = await UserModel.findById(id)
   ctx.body = {
     errorCode: 0,
     message: 'ok',
     avatar: user.currentAvatar
   }
-  await next();
+  await next()
 })
 
-module.exports = router;
+module.exports = router
