@@ -294,7 +294,10 @@ router.post('/order', async (ctx, next) => {
   // 调用 setMethod 并传入 get，会返回可以跳转到支付页面的 url
   formData.setMethod('get')
 
-  formData.addField('notifyUrl', 'http://118.31.2.223/api/public/v1/notify')
+  formData.addField(
+    'notifyUrl',
+    'http://www.linhuibin.com/api/public/v1/notify'
+  )
 
   const outTradeNo = tradeNo()
 
@@ -304,7 +307,7 @@ router.post('/order', async (ctx, next) => {
     totalAmount: price,
     subject: '外卖订单支付',
     body: storeName + ':' + foods[0].name,
-    quitUrl: 'http://118.31.2.223/client#/order'
+    quitUrl: 'http://www.linhuibin.com/client#/order'
   })
 
   const result = await alipaySdk.exec(
@@ -409,26 +412,29 @@ router.post('/user/avatar', upload.single('avatar'), async (ctx, next) => {
   const { id } = ctx.request.query
   const user = await UserModel.findById(id)
 
-  const filePath =
-    'http://118.31.2.223:8080/uploads/avatars/' + ctx.req.file.filename
+  if (user) {
+    const filePath =
+      'http://118.31.2.223:8080/uploads/avatars/' + ctx.req.file.filename
 
-  user.currentAvatar = filePath
+    user.currentAvatar = filePath
 
-  user.historyAvatar.unshift(filePath)
+    user.historyAvatar.unshift(filePath)
 
-  if (user.historyAvatar.length > 5) {
-    user.historyAvatar.length = 5
+    if (user.historyAvatar.length > 5) {
+      user.historyAvatar.length = 5
+    }
+
+    user.save(err => {
+      if (err) throw err
+    })
+
+    ctx.body = {
+      errorCode: 0,
+      message: 'ok',
+      avatar: user.currentAvatar
+    }
   }
 
-  user.save(err => {
-    if (err) throw err
-  })
-
-  ctx.body = {
-    errorCode: 0,
-    message: 'ok',
-    avatar: user.currentAvatar
-  }
   await next()
 })
 
