@@ -158,6 +158,9 @@ router.post('/store/goods/add', verifyAuth(), async (ctx, next) => {
   const { decode } = ctx.state
 
   const { id } = decode
+  // let id = '5dd292a8b077520c2839aa0b' // 吉客
+  // let id = '5dd29214151ff50b14524f37' // 华莱士
+  // let id = '5dd292f3b077520c2839aa0c' // 源川
   let data = JSON.parse(ctx.request.rawBody)
   const store = await StoreModel.findById(id)
 
@@ -464,6 +467,33 @@ router.delete('/store/goods', verifyAuth(), async (ctx, next) => {
     message: '删除成功...'
   }
 
+  await next()
+})
+
+// 搜索商品
+router.get('/goods/search', verifyAuth(), async (ctx, next) => {
+  const { decode } = ctx.state
+
+  const { id } = decode
+  const store = await StoreModel.findById(id)
+
+  let goods = store.store_goods
+
+  const data = []
+
+  let { q } = ctx.request.query
+
+  goods.forEach(item => {
+    if (item.food_name.includes(q)) {
+      data.push(item)
+    }
+  })
+
+  ctx.body = {
+    errorCode: 0,
+    message: 'ok',
+    data
+  }
   await next()
 })
 
