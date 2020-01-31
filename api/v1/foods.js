@@ -470,7 +470,7 @@ router.delete('/store/goods', verifyAuth(), async (ctx, next) => {
   await next()
 })
 
-// 搜索商品
+// cms端搜索商品
 router.get('/goods/search', verifyAuth(), async (ctx, next) => {
   const { decode } = ctx.state
 
@@ -488,6 +488,51 @@ router.get('/goods/search', verifyAuth(), async (ctx, next) => {
       data.push(item)
     }
   })
+
+  ctx.body = {
+    errorCode: 0,
+    message: 'ok',
+    data
+  }
+  await next()
+})
+
+// client端搜索
+router.get('/client/search', async (ctx, next) => {
+  let { q } = ctx.request.query
+
+  const stores = await StoreModel.find({})
+  const data = []
+
+  for (let index = 0; index < stores.length; index++) {
+    const store = stores[index]
+    let storeNameAccord = false
+
+    store['store_name'].includes(q) && (storeNameAccord = true)
+
+    const goods = store.store_goods
+
+    const resultList = []
+
+    for (let j = 0; j < goods.length; j++) {
+      const good = goods[j]
+
+      if (good.food_name.includes(q)) {
+        resultList.push(good)
+      }
+      if (resultList.length === 3) break
+    }
+
+    // 结果
+    if (resultList.length) {
+      data.push({
+        ...store['_doc'],
+        resultList
+      })
+    } else if (storeNameAccord) {
+      data.push(store['_doc'])
+    }
+  }
 
   ctx.body = {
     errorCode: 0,
