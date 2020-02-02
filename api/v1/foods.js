@@ -7,6 +7,7 @@ const filterOrderData = require('../../lib/filterOrderData')
 const glob = require('glob')
 const verifyAuth = require('../../middleWares/verifyAuth')
 const { secret } = require('../../config')
+const upload = require('../../middleWares/multer')
 
 const router = new Router({
   prefix: '/api/public/v1'
@@ -244,7 +245,7 @@ router.get('/store/info/:id', async (ctx, next) => {
   let {
     store_name: name,
     store_notice: notice,
-    store_logo_url,
+    store_logo_url: pic,
     distribution_cost: distributionCode,
     startup_cost: startupCost
   } = store
@@ -256,7 +257,8 @@ router.get('/store/info/:id', async (ctx, next) => {
       name,
       notice,
       distributionCode,
-      startupCost
+      startupCost,
+      pic
     }
   }
 
@@ -290,6 +292,31 @@ router.post('/store/info', verifyAuth(), async (ctx, next) => {
     message: '修改成功...'
   }
 
+  await next()
+})
+
+// 修改LOGO
+// https://cube.elemecdn.com/1/10/94e068597d5b90407fff916adc0ecpng.png?x-oss-process=image/format,webp/resize,w_130,h_130,m_fixed
+router.post('/store/logo_upload', upload.single('file'), async (ctx, next) => {
+  const { id } = ctx.query
+  const store = await StoreModel.findById(id)
+
+  if (store) {
+    // 118.31.2.223
+    const filePath =
+      'http://118.31.2.223:8080/uploads/avatars/' + ctx.req.file.filename
+
+    store.store_logo_url = filePath
+
+    store.save(err => {
+      if (err) throw err
+    })
+
+    ctx.body = {
+      errorCode: 0,
+      message: 'ok'
+    }
+  }
   await next()
 })
 
