@@ -250,16 +250,20 @@ router.get('/store/info/:id', async (ctx, next) => {
     startup_cost: startupCost
   } = store
 
+  const sendData = {
+    name,
+    notice,
+    distributionCode,
+    startupCost,
+    pic
+  }
+
+  console.log(sendData)
+
   ctx.body = {
     errorCode: 0,
     message: 'ok',
-    data: {
-      name,
-      notice,
-      distributionCode,
-      startupCost,
-      pic
-    }
+    data: sendData
   }
 
   await next()
@@ -314,7 +318,8 @@ router.post('/store/logo_upload', upload.single('file'), async (ctx, next) => {
 
     ctx.body = {
       errorCode: 0,
-      message: 'ok'
+      message: 'ok',
+      path: filePath
     }
   }
   await next()
