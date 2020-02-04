@@ -17,6 +17,11 @@ const router = new Router({
 // 获取所有店铺
 router.get('/stores', async (ctx, next) => {
   let stores = await StoreModel.find({})
+  // 新增访问量
+  await statisticsModel.create({
+    visitNum: 1,
+    time: new Date()
+  })
 
   ctx.body = {
     errorCode: 0,
