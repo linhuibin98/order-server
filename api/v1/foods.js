@@ -1,6 +1,7 @@
 const Router = require('koa-router')
 const { ParameterException, DBException } = require('../../core/http-exception')
 const StoreModel = require('../../models/StoreModel')
+const statisticsModel = require('../../models/statisticsModel')
 const encryptPassword = require('../../lib/encryptPassword')
 const jwt = require('jsonwebtoken')
 const filterOrderData = require('../../lib/filterOrderData')
@@ -257,8 +258,6 @@ router.get('/store/info/:id', async (ctx, next) => {
     startupCost,
     pic
   }
-
-  console.log(sendData)
 
   ctx.body = {
     errorCode: 0,
@@ -608,23 +607,73 @@ router.get('/store/order/:id', async (ctx, next) => {
   await next()
 })
 
-// 获取当前日期到指定天数的所有订单
+// 获取店铺数据、当前日期到指定天数的所有订单
 router.get('/store/order/day/:id', async (ctx, next) => {
   const { id } = ctx.params
   let { day } = ctx.request.query
   // 获取7天内的订单
   day = day || 7
 
+  // 订单数据
   const store = await StoreModel.findById(id)
   const orders = store.orders
 
+  let totalOrderNum = orders.length
+
   let { xData, seriesData } = filterOrderData(orders, day)
+  let newWeekOrderNum = seriesData.reduce((pre, cur) => pre + cur)
+
+  await statisticsModel.create({
+    visitNum: 1,
+    time: new Date()
+  })
+
+  // 访问数据
+  const statist = await statisticsModel.find({})
+  let statistData = filterOrderData(statist, day)
+  let weekVisitData = statistData.seriesData
+  let newWeekTotalVisit = weekVisitData.reduce((pre, cur) => pre + cur)
+
+  let totalVisitNum = statist.length
+
+  // 周->总访问数据
+  let WeekTotalVisitData = weekVisitData.map((num, i) => {
+    let j = i + 1
+    if (j < weekVisitData.length) {
+      return (
+        totalVisitNum - weekVisitData.slice(j).reduce((pre, cur) => pre + cur)
+      )
+    } else {
+      return totalVisitNum
+    }
+  })
+
+  // 周->总订单数
+  let weekTotalOrderData = seriesData.map((num, i) => {
+    let j = i + 1
+    if (j < seriesData.length) {
+      return totalOrderNum - seriesData.slice(j).reduce((pre, cur) => pre + cur)
+    } else {
+      return totalOrderNum
+    }
+  })
 
   ctx.body = {
     errorCode: 0,
     message: 'ok',
-    seriesData,
-    xData
+    data: {
+      weekOrderData: seriesData, // 订单周数据
+      dayOrderData: seriesData[seriesData.length - 1], // 当日订单
+      weekVisitData, // 周浏览数
+      dayVisitData: weekVisitData[weekVisitData.length - 1], // 当日浏览数
+      WeekTotalVisitData,
+      newWeekTotalVisit,
+      newWeekOrderNum,
+      totalVisitNum,
+      totalOrderNum,
+      weekTotalOrderData,
+      xData
+    }
   }
 
   await next()
