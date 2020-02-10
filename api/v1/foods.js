@@ -533,7 +533,7 @@ router.get('/goods/search', verifyAuth(), async (ctx, next) => {
   await next()
 })
 
-// client端搜索
+// client端搜索商品
 router.get('/client/search', async (ctx, next) => {
   let { q } = ctx.request.query
 
@@ -684,7 +684,7 @@ router.get('/store/order/day/:id', async (ctx, next) => {
   await next()
 })
 
-// 根据orderNum获取订单详情
+// 根据orderNum(订单号)获取订单详情
 router.get(
   '/order/detail/:storeId/:orderNum',
   verifyAuth(),
@@ -702,5 +702,44 @@ router.get(
     await next()
   }
 )
+
+// cms端 根据 买家姓名 or 订单号 获取订单详情
+router.get('/order/detail', verifyAuth(), async (ctx, next) => {
+  let data = []
+
+  try {
+    let {
+      decode: { id }
+    } = ctx.state
+
+    const store = await StoreModel.findById(id)
+    let orders = store.orders
+
+    let { num, name } = ctx.query
+
+    if (num) {
+      // 根据订单号搜索
+      let order = orders.find(order => order.num === num)
+      order && data.push(order)
+    } else {
+      // 买家姓名搜索
+      let result = orders.filter(order => {
+        return order.userName === name
+      })
+      data = result || []
+    }
+  } catch (e) {
+    console.log(e)
+    throw new ParameterException('num,name:不合法')
+  }
+
+  ctx.body = {
+    errorCode: 0,
+    message: 'ok',
+    data
+  }
+
+  await next()
+})
 
 module.exports = router
