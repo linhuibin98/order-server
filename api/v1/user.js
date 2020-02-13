@@ -3,13 +3,14 @@ const UserModel = require('../../models/UserModel')
 const storeModel = require('../../models/StoreModel')
 const OrderModel = require('../../models/OrderModel')
 const encryptPassword = require('../../lib/encryptPassword')
+const verifyAuth = require('../../middleWares/verifyAuth')
+const { ParameterException } = require('../../core/http-exception')
 const jwt = require('jsonwebtoken')
 const tradeNo = require('../../lib/generateOrderNum')
 const upload = require('../../middleWares/multer')
 const AlipaySdk = require('alipay-sdk').default
 const AlipayFormData = require('alipay-sdk/lib/form').default
 const { alipay, secret } = require('../../config')
-const verifyAuth = require('../../middleWares/verifyAuth')
 
 const { appId, privateKey, gateway, alipayPublicKey, sellerId } = alipay
 
@@ -339,6 +340,30 @@ router.post('/order', async (ctx, next) => {
     result
   }
 
+  await next()
+})
+
+// 根据orderNum(订单号)获取订单详情
+router.get('/order/detail/:orderNum', verifyAuth(), async (ctx, next) => {
+  let { decode: {id: userId} } = ctx.state
+  let { orderNum } = ctx.params
+
+  try {
+    let user = await UserModel.findById(userId)
+
+    let orders = user.user_order
+
+    let order = orders.find(order => order.num === orderNum)
+
+    ctx.body = {
+      errorCode: 0,
+      message: 'ok',
+      data: order
+    }
+  } catch(e) {
+    console.log(e)
+    throw new ParameterException()
+  }
   await next()
 })
 

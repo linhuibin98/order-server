@@ -578,7 +578,7 @@ router.get('/client/search', async (ctx, next) => {
   await next()
 })
 
-// 获取订单
+// cms端获取订单
 router.get('/store/order/:id', async (ctx, next) => {
   const { id } = ctx.params
   let { page, limit } = ctx.request.query
@@ -683,25 +683,6 @@ router.get('/store/order/day/:id', async (ctx, next) => {
 
   await next()
 })
-
-// 根据orderNum(订单号)获取订单详情
-router.get(
-  '/order/detail/:storeId/:orderNum',
-  verifyAuth(),
-  async (ctx, next) => {
-    let { orderNum, storeId } = ctx.params
-    let store = await StoreModel.findById(storeId)
-
-    let order = store.orders.find(order => order.num === orderNum)
-
-    ctx.body = {
-      errorCode: 0,
-      message: 'ok',
-      order
-    }
-    await next()
-  }
-)
 
 // cms端 根据 买家姓名 or 订单号 获取订单详情
 router.get('/order/detail', verifyAuth(), async (ctx, next) => {
